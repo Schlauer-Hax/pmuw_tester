@@ -37,10 +37,16 @@ for (const project of filteredProjects) {
     console.log(`\n\nChecking project ${project.name} (${project.id})`);
     try {
         const teamFile = await api.RepositoryFiles.show(project.id, "team.csv", project.default_branch);
-
+        
         const team: Record<string, string> = Object.fromEntries(b64DecodeUnicode(teamFile.content).split('\n').map(line => line.split(',').map(x => x.trim())));
 
         const commits = await api.Commits.all(project.id, { refName: project.default_branch });
+        if (!commits || commits.length === 0) {
+            console.log("❌ No commits found");
+            continue;
+        }
+        const firstCommitDiff = await api.Commits.showDiff(project.id, commits.filter(c => Object.keys(team).includes(c.author_name)).at(-1)!.id);
+        console.log(booleanMessage("First commit was .gitlab-ci.yml", firstCommitDiff.some(diff => diff.new_path === ".gitlab-ci.yml")));
 
         const commitsPerMember = Object.groupBy(commits, c => team[ c.author_name ]);
         for (const [ member, memberCommits ] of Object.entries(commitsPerMember)) {
