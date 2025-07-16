@@ -14,8 +14,17 @@ function b64DecodeUnicode(str: string) {
     return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
 }
 
-const projectName = Deno.args[ 0 ];
-const paranoidMode = Deno.args[ 1 ];
+
+let projectName;
+let paranoidMode: string;
+if (Deno.args[0] === "-p") {
+    projectName = Deno.args[1]
+    paranoidMode = Deno.args[0]
+} else {
+    projectName = Deno.args[0]
+    paranoidMode = Deno.args[1]
+}
+
 if (paranoidMode) {
     console.log("Running in Paranoid Mode. Only considering commits with all success.")
 }

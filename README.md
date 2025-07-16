@@ -10,12 +10,13 @@ is getting max points.
    ```
    GITLAB_TOKEN=your_token_here
    ```
-3. deno run --allow-env --allow-net index.ts <project_name>
+3. deno run --allow-env --allow-net index.ts [-p] <project_name>
    - If you want to check all projects, just run
      `deno run --allow-env --allow-net index.ts`
    - If you want to check a specific project, replace `<project_name>` with the
      name of the project you want to check.
-4. The program will output the results of the checks.
+   - If you want to only consider commits that have all success checks, pass `-p` as arg0 or 1
+4. The program will output the results of the checks
 
 ```
 Checking project <redactedname> (<redactedid>)
