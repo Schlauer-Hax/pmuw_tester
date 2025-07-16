@@ -1,4 +1,4 @@
-import { Gitlab } from 'https://esm.sh/@gitbeaker/rest?dts';
+import { CommitSchema, Gitlab, CommitStatusSchema } from 'https://esm.sh/@gitbeaker/rest?dts';
 
 import "jsr:@std/dotenv/load";
 
@@ -14,7 +14,11 @@ function b64DecodeUnicode(str: string) {
     return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
 }
 
-const projectName = Deno.args[0];
+const projectName = Deno.args[ 0 ];
+const paranoidMode = Deno.args[ 1 ];
+if (paranoidMode) {
+    console.log("Running in Paranoid Mode. Only considering commits with all success.")
+}
 
 const token = Deno.env.get('GITLAB_TOKEN');
 if (!token) {
@@ -37,7 +41,7 @@ for (const project of filteredProjects) {
     console.log(`\n\nChecking project ${project.name} (${project.id})`);
     try {
         const teamFile = await api.RepositoryFiles.show(project.id, "team.csv", project.default_branch);
-        
+
         const team: Record<string, string> = Object.fromEntries(b64DecodeUnicode(teamFile.content).split('\n').map(line => line.split(',').map(x => x.trim())));
 
         const commits = await api.Commits.all(project.id, { refName: project.default_branch });
@@ -59,7 +63,19 @@ for (const project of filteredProjects) {
                 continue;
             }
             console.log(`Checking ${member}, ${memberCommits[ 0 ].author_name} (${memberCommits.length} commits)`);
-            const withoutMergeCommits = memberCommits.filter(c => c.parent_ids?.length === 1);
+            let withoutMergeCommits = memberCommits.filter(c => c.parent_ids?.length === 1);
+
+            const commitStatuses: { commit: CommitSchema, statuses: | CommitStatusSchema[] }[] = []
+            for (const commit of withoutMergeCommits) {
+                const statuses = await api.Commits.allStatuses(project.id, commit.id);
+                commitStatuses.push({ commit, statuses })
+            }
+            console.log(greaterMessage(`Has CI status for 30% of commits`, commitStatuses.filter(x => x.statuses.length > 0).length, withoutMergeCommits.length * 0.3))
+            const successCommits = commitStatuses.filter(x => x.statuses.length > 0 && x.statuses.every(y => y.status === 'success'))
+            console.log(greaterMessage(`Has success CI status for 50 commits`, successCommits.length, 50))
+            if (paranoidMode) {
+                withoutMergeCommits = successCommits.map(x => x.commit);
+            }
             console.log(greaterMessage(`Has 50 commits`, withoutMergeCommits?.length, 50));
             const maxCommits = (Math.max(...Object.values(commitsPerMember).map(c => c?.length ?? 0)) / 2);
             console.log(greaterMessage(`Has own > max(commits)/2`, withoutMergeCommits.length, maxCommits));
@@ -76,20 +92,6 @@ for (const project of filteredProjects) {
                 }
             }
             console.log(greaterMessage(`Has 20% test commits`, testCommits, withoutMergeCommits.length * 0.2));
-
-            let ciStatuses = 0;
-            let passedStatuses = 0;
-            for (const commit of withoutMergeCommits) {
-                const statuses = await api.Commits.allStatuses(project.id, commit.id);
-                if (statuses.length > 0) {
-                    ciStatuses++;
-                }
-                if (statuses.every(x => x.status === 'success')) {
-                    passedStatuses++;
-                }
-            }
-            console.log(greaterMessage(`Has CI status for 30% of commits`, ciStatuses, withoutMergeCommits.length * 0.3));
-            console.log(greaterMessage(`Has success CI status for 50 commits`, passedStatuses, withoutMergeCommits.length * 0.3))
 
             const mergeCommits = memberCommits.filter(c => (c.parent_ids?.length ?? 0) > 1);
             console.log(greaterMessage(`Has 2 merge commits`, mergeCommits.length, 2));
