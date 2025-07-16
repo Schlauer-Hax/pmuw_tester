@@ -78,13 +78,18 @@ for (const project of filteredProjects) {
             console.log(greaterMessage(`Has 20% test commits`, testCommits, withoutMergeCommits.length * 0.2));
 
             let ciStatuses = 0;
+            let passedStatuses = 0;
             for (const commit of withoutMergeCommits) {
                 const statuses = await api.Commits.allStatuses(project.id, commit.id);
                 if (statuses.length > 0) {
                     ciStatuses++;
                 }
+                if (statuses.every(x => x.status === 'success')) {
+                    passedStatuses++;
+                }
             }
             console.log(greaterMessage(`Has CI status for 30% of commits`, ciStatuses, withoutMergeCommits.length * 0.3));
+            console.log(greaterMessage(`Has success CI status for 50 commits`, passedStatuses, withoutMergeCommits.length * 0.3))
 
             const mergeCommits = memberCommits.filter(c => (c.parent_ids?.length ?? 0) > 1);
             console.log(greaterMessage(`Has 2 merge commits`, mergeCommits.length, 2));
